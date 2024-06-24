@@ -1,0 +1,1 @@
+"mcuboot":"/Users/joshmillar/Desktop/phd/blitz/bootloader/mcuboot":"/Users/joshmillar/Desktop/phd/blitz/bootloader/mcuboot/boot/zephyr/sysbuild"
