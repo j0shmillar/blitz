@@ -1,2 +1,2 @@
 # blitz
-A library for inference energy-consumption profiling on MCUs using Zephyr + TFLiteMicro. 
+Easy TFLM compilation for inferece profiling on MCUs using [DFU-UTIL](https://dfu-util.sourceforge.net). 

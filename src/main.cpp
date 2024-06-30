@@ -1,54 +1,71 @@
-#include <zephyr/kernel.h>
-#include <tensorflow/lite/micro/micro_mutable_op_resolver.h>
-#include <tensorflow/lite/micro/micro_interpreter.h>
-#include <tensorflow/lite/micro/system_setup.h>
-#include <tensorflow/lite/schema/schema_generated.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/time.h>
+#include <unistd.h>
 #include "model.h"
+#include "tensorflow/lite/micro/micro_mutable_op_resolver.h"
+#include "tensorflow/lite/micro/micro_interpreter.h"
+#include "tensorflow/lite/schema/schema_generated.h"
 
-namespace
-{
-  const tflite::Model *model = nullptr;
-  tflite::MicroInterpreter *interpreter = nullptr;
-  TfLiteTensor *input = nullptr;
-  constexpr int kTensorArenaSize = 2 * 1024;
-  static uint8_t tensor_arena[kTensorArenaSize];
-} 
+#define INPUT_SIZE 784  
+#define OUTPUT_SIZE 10 
+#define NUM_RUNS num_inferences
+#define DELAY_BETWEEN_INFERENCES inference_seconds
 
-int main(void)
-{
-  model = tflite::GetModel(g_model);
-  static tflite::MicroMutableOpResolver<1> resolver;
-  resolver.AddFullyConnected();
+namespace {
+  constexpr int kTensorArenaSize = 10 * 1024;
+  uint8_t tensor_arena[kTensorArenaSize];
+}
 
-  static tflite::MicroInterpreter static_interpreter(
-      model, resolver, tensor_arena, kTensorArenaSize);
-  interpreter = &static_interpreter;
+int main() {
+    const int num_inferences = 10; // Define the number of inferences
+    const double inference_seconds = 1.0; // Define delay between inferences in seconds
 
-  TF_LITE_ENSURE_STATUS(interpreter->AllocateTensors());
-
-  input = interpreter->input(0);
-
-  float TWO_PI = 3.14159265359f * 2;
-  int NUM_CYCLES = 1000000;
-  int BATCH_SIZE = 1000;
-  printf("Running inference for %d cycles, %d a batch\n", NUM_CYCLES, BATCH_SIZE);
-  uint32_t start_time = k_uptime_get_32();
-  uint32_t batch_start_time = start_time;
-  for (int i = 0; i < NUM_CYCLES; i++)
-  {
-    float x = TWO_PI * (i % BATCH_SIZE) / BATCH_SIZE;
-    int8_t x_quantized = x / input->params.scale + input->params.zero_point;
-    input->data.int8[0] = x_quantized;
-    TF_LITE_ENSURE_STATUS(interpreter->Invoke());
-    if (i % BATCH_SIZE == 0 && i != 0)
-    {
-      uint32_t t = k_uptime_get_32();
-      printf("%04d, %d\n", i / BATCH_SIZE, t - batch_start_time);
-      batch_start_time = t;
+    const tflite::Model* model = tflite::GetModel(model_data);
+    if (model->version() != TFLITE_SCHEMA_VERSION) {
+        fprintf(stderr, "Model provided is version %d not equal to supported version %d.\n", model->version(), TFLITE_SCHEMA_VERSION);
+        return 1;
     }
-  }
 
-  printf("Average time: %d\n", (k_uptime_get_32() - start_time) * BATCH_SIZE / NUM_CYCLES);
-  return 0;
+    tflite::MicroMutableOpResolver<10> resolver;  // Use MicroMutableOpResolver
+    tflite::MicroInterpreter interpreter(model, resolver, tensor_arena, kTensorArenaSize);
+    interpreter.AllocateTensors();
 
+    TfLiteTensor* input = interpreter.input(0);
+    TfLiteTensor* output = interpreter.output(0);
+
+    struct timeval start_time, end_time;
+    double latencies[NUM_RUNS];
+
+    for (int i = 0; i < NUM_RUNS; ++i) {
+        for (int j = 0; j < INPUT_SIZE; ++j) {
+            input->data.f[j] = (float)rand() / RAND_MAX;
+        }
+
+        gettimeofday(&start_time, NULL);
+        TfLiteStatus invoke_status = interpreter.Invoke();
+        gettimeofday(&end_time, NULL);
+
+        if (invoke_status != kTfLiteOk) {
+            fprintf(stderr, "Invoke failed\n");
+            return 1;
+        }
+
+        double latency_ms = (double)(end_time.tv_sec - start_time.tv_sec) * 1000.0 + (double)(end_time.tv_usec - start_time.tv_usec) / 1000.0;
+        latencies[i] = latency_ms;
+
+        usleep((useconds_t)(DELAY_BETWEEN_INFERENCES * 1000000));  // Ensure <unistd.h> is included
+    }
+
+    double total_time = 0.0;
+    for (int i = 0; i < NUM_RUNS; ++i) {
+        total_time += latencies[i];
+    }
+    double average_latency = total_time / NUM_RUNS;
+    double throughput = NUM_RUNS / (total_time / 1000.0);
+
+    printf("Average Latency: %.2f ms\n", average_latency);
+    printf("Throughput: %.2f inferences/second\n", throughput);
+
+    return 0;
 }
