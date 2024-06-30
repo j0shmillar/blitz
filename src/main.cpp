@@ -9,8 +9,8 @@
 
 #define INPUT_SIZE 784  
 #define OUTPUT_SIZE 10 
-#define NUM_RUNS num_inferences
-#define DELAY_BETWEEN_INFERENCES inference_seconds
+#define NUM_RUNS 10
+#define DELAY_BETWEEN_INFERENCES 10
 
 namespace {
   constexpr int kTensorArenaSize = 10 * 1024;
@@ -18,9 +18,6 @@ namespace {
 }
 
 int main() {
-    const int num_inferences = 10; // Define the number of inferences
-    const double inference_seconds = 1.0; // Define delay between inferences in seconds
-
     const tflite::Model* model = tflite::GetModel(model_data);
     if (model->version() != TFLITE_SCHEMA_VERSION) {
         fprintf(stderr, "Model provided is version %d not equal to supported version %d.\n", model->version(), TFLITE_SCHEMA_VERSION);
