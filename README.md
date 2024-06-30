@@ -1,2 +1,2 @@
 # blitz
-Easy TFLM compilation for inferece profiling on MCUs using [DFU-UTIL](https://dfu-util.sourceforge.net). 
+Easy TFLM compilation for inference profiling on MCUs using [DFU-UTIL](https://dfu-util.sourceforge.net). 
